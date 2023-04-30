@@ -141,6 +141,7 @@ NUGET
       FSharp.Core (>= 5.0.1)
     AssimpNet (5.0.0-beta1)
       NETStandard.Library (>= 1.6.1)
+    DotnetNoise (1.0)
     FShade (5.3.4)
       FShade.Core (5.3.4)
       FShade.GLSL (5.3.4)

@@ -1,0 +1,6 @@
+{
+    // https://github.com/fsprojects/FSharpLint/issues/572
+    "RedundantNewKeyword": {
+        "enabled": false
+    }
+}

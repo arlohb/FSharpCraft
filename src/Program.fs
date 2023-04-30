@@ -1,58 +1,14 @@
 ﻿open System
+open FSharp.Data.Adaptive
+open FSharp.Collections
 open Aardvark.Base
 open Aardvark.Rendering
 open Aardvark.SceneGraph
 open Aardvark.Application
 open Aardvark.Application.Slim
-open FSharp.Data.Adaptive
 
-type Mesh =
-    { Points: (V3f * C4b) array
-      Triangles: int array }
-
-let indexToAngle indexCount index =
-    2. * Math.PI * (float index) / (float indexCount)
-
-let angleToPoints radius angle = radius * V3f(sin angle, cos angle, 0)
-
-let circle radius vertexCount colour =
-    let indices = [ 0 .. vertexCount - 1 ]
-
-    let points =
-        indices
-        // Indices -> Angles -> Points
-        |> List.map ((indexToAngle vertexCount) >> (angleToPoints radius))
-        // Add the origin
-        |> List.append [ V3f.Zero ]
-        // Points with colours
-        |> List.map (fun p -> (p, colour p))
-        |> List.toArray
-
-    let triangles =
-        indices
-        // Offset all the indices
-        |> List.map ((+) 1)
-        // Add the origin index
-        |> List.append [ 0 ]
-        |> List.pairwise
-        |> List.skip 1
-        |> List.map (fun (a, b) -> [ 0; a; b ])
-        |> List.append [ [ 0; vertexCount; 1 ] ]
-        |> List.collect id
-        |> List.toArray
-
-    { Points = points
-      Triangles = triangles }
-
-let createGeometry mesh =
-    IndexedGeometry(
-        Mode = IndexedGeometryMode.TriangleList,
-        IndexArray = mesh.Triangles,
-        IndexedAttributes =
-            SymDict.ofList
-                [ DefaultSemantic.Positions, mesh.Points |> Array.map (fun (p, _) -> p) :> Array
-                  DefaultSemantic.Colors, mesh.Points |> Array.map (fun (_, c) -> c) :> Array ]
-    )
+open Mesh
+open World
 
 [<EntryPoint; STAThread>]
 let main _ =
@@ -70,14 +26,26 @@ let main _ =
         win.Sizes
         |> AVal.map (fun s -> Frustum.perspective 60.0 0.1 100.0 (float s.X / float s.Y))
 
-    let colour (p: V3f) = C4b(p.X, p.Y, -0.5f * (p.X + p.Y))
+    let world = defaultWorld
+
+    for x = -5 to 5 do
+        for y = -5 to 5 do
+            world.CreateChunk x y 0
 
     let sg =
-        [ createGeometry (circle 2f 128 colour) ]
-        |> List.map Sg.ofIndexedGeometry
-        // |> List.append [Sg.sphere 1 (C4b.Cyan |> AVal.init) (1.0 |> AVal.init)]
+        [| -5 .. 5 |]
+        |> Array.allPairs [| -5 .. 5 |]
+        |> Array.map (fun (x, y) -> world.CreateMesh(x, y, 0))
+        |> Array.map (createGeometry >> Sg.ofIndexedGeometry)
+        |> Array.toList
         |> Sg.ofList
-        |> Sg.effect [ DefaultSurfaces.trafo |> toEffect; DefaultSurfaces.vertexColor |> toEffect ]
+        |> Sg.scale 0.04
+        |> Sg.diffuseTexture DefaultTextures.checkerboard
+        |> Sg.shader {
+            do! DefaultSurfaces.trafo
+            do! DefaultSurfaces.diffuseTexture
+            do! DefaultSurfaces.simpleLighting
+        }
         |> Sg.viewTrafo (view |> AVal.map CameraView.viewTrafo)
         |> Sg.projTrafo (proj |> AVal.map Frustum.projTrafo)
 
@@ -86,3 +54,8 @@ let main _ =
     win.RenderTask <- task
     win.Run()
     0
+
+// https://github.com/aardvark-platform/aardvark.rendering/tree/master/src/Examples%20(netcore)
+// https://github.com/aardvark-platform/aardvark.docs/wiki/Gallery
+// https://github.com/aardvark-platform/aardvark.docs/wiki
+// https://github.com/aardvark-platform/aardvark.docs/wiki/Hello-World-Tutorial

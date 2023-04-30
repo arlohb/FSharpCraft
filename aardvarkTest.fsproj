@@ -12,6 +12,10 @@
   </PropertyGroup>
   <ItemGroup>
     <None Include="paket.references" />
+    <Compile Include="src\Mesh.fs" />
+    <Compile Include="src\Block.fs" />
+    <Compile Include="src\Chunk.fs" />
+    <Compile Include="src\World.fs" />
     <Compile Include="src\Program.fs" />
   </ItemGroup>
   <Import Project=".paket\Paket.Restore.targets" />
