@@ -1,6 +1,6 @@
 ﻿open System
-open FSharp.Data.Adaptive
 open FSharp.Collections
+open FSharp.Data.Adaptive
 open Aardvark.Base
 open Aardvark.Rendering
 open Aardvark.SceneGraph
@@ -20,7 +20,14 @@ let main _ =
     let initialView = CameraView.lookAt (V3d(6, 6, 6)) V3d.Zero V3d.OOI
 
     let view =
-        initialView |> DefaultCameraController.control win.Mouse win.Keyboard win.Time
+        AVal.integrate
+            initialView
+            win.Time
+            [ (DefaultCameraController.controlWSAD win.Keyboard win.Time)
+              (DefaultCameraController.controlLookAround win.Mouse)
+              (DefaultCameraController.controlPan win.Mouse)
+              (DefaultCameraController.controlZoom win.Mouse)
+              (DefaultCameraController.controllScroll win.Mouse win.Time) ]
 
     let proj =
         win.Sizes
@@ -28,19 +35,40 @@ let main _ =
 
     let world = defaultWorld
 
-    for x = -5 to 5 do
-        for y = -5 to 5 do
-            world.CreateChunk x y 0
+    let texture = new FileTexture("assets/Texture.png", false)
+
+    let chunkRadius = 10
+    let chunkZRadius = 3
+
+    [| -chunkRadius .. chunkRadius |]
+    |> Array.allPairs [| -chunkRadius .. chunkRadius |]
+    |> Array.allPairs [| -chunkZRadius .. chunkZRadius |]
+    |> Array.iter (fun (z, (y, x)) -> world.CreateChunk x y z)
+
+    let meshes =
+        [| -chunkRadius .. chunkRadius |]
+        |> Array.allPairs [| -chunkRadius .. chunkRadius |]
+        |> Array.allPairs [| -chunkZRadius .. chunkZRadius |]
+        |> Array.map (fun (z, (y, x)) -> world.CreateMesh(x, y, z))
+        |> Array.map createGeometry
+        |> ASet.ofArray
 
     let sg =
-        [| -5 .. 5 |]
-        |> Array.allPairs [| -5 .. 5 |]
-        |> Array.map (fun (x, y) -> world.CreateMesh(x, y, 0))
-        |> Array.map (createGeometry >> Sg.ofIndexedGeometry)
-        |> Array.toList
-        |> Sg.ofList
-        |> Sg.scale 0.04
-        |> Sg.diffuseTexture DefaultTextures.checkerboard
+        Sg.geometrySet
+            IndexedGeometryMode.TriangleList
+            (Map.ofList
+                [ DefaultSemantic.Positions, typeof<V3f>
+                  DefaultSemantic.Normals, typeof<V3f>
+                  DefaultSemantic.DiffuseColorCoordinates, typeof<V2f> ])
+            meshes
+        |> Sg.scale 0.1
+        |> Sg.diffuseTexture (texture |> AVal.constant)
+        |> Sg.samplerState
+            DefaultSemantic.DiffuseColorTexture
+            (SamplerState.Default
+             |> SamplerState.withFilter TextureFilter.MinMagPoint
+             |> Some
+             |> AVal.constant)
         |> Sg.shader {
             do! DefaultSurfaces.trafo
             do! DefaultSurfaces.diffuseTexture

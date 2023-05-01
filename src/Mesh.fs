@@ -11,6 +11,8 @@ type Mesh =
     { Vertices: Vertex array
       Triangles: int array }
 
+    static member Empty = { Vertices = [||]; Triangles = [||] }
+
 let mergeMesh mesh1 mesh2 =
     { Vertices = Array.append mesh1.Vertices mesh2.Vertices
       Triangles = Array.append mesh1.Triangles (mesh2.Triangles |> Array.map ((+) mesh1.Vertices.Length)) }

@@ -6,11 +6,12 @@ open DotnetNoise
 
 open Block
 open Chunk
+open Biome
 open Mesh
 
 type World =
     { mutable Chunks: HashMap<(int * int * int), Chunk>
-      BlockGenerator: int -> int -> int -> Block }
+      BlockGenerator: Biome -> int -> int -> int -> Block }
 
     member this.CreateChunk x y z =
         let newChunk =
@@ -85,7 +86,15 @@ type World =
                 | Ny -> ([| V3f.OOO; V3f.OOI; V3f.IOI; V3f.IOO |], -V3f.OIO)
                 | Nz -> ([| V3f.OOO; V3f.OIO; V3f.IIO; V3f.IOO |], -V3f.OOI)
 
-            let uvs = [| V2f.OO; V2f.OI; V2f.II; V2f.OI |]
+            // Without this extra value
+            // There are lines between blocks
+            let e = pow 10f -2f
+
+            let uvs =
+                [| V2f.OO + V2f(e, e)
+                   V2f.OI + V2f(e, -e)
+                   V2f.II + V2f(-e, -e)
+                   V2f.IO + V2f(-e, e) |]
 
             { Vertices =
                 points
@@ -95,7 +104,7 @@ type World =
 
                     { Position = 16f * V3f(cx, cy, cz) + p + V3f(float x, float y, float z)
                       Normal = normal
-                      Uv = uv + blockUv block })
+                      Uv = uv / 16f + blockUv block })
               Triangles = [| 0; 1; 2; 0; 2; 3 |] }
 
         let flattenArray (array: 'a array3d) =
@@ -112,16 +121,35 @@ type World =
         |> zipMap (getFaces chunkPos)
         |> Array.map (fun (pos, faces) -> faces |> Array.map (buildFace pos))
         |> Array.collect id
-        |> Array.reduce mergeMesh
+        |> (fun arr ->
+            if arr.IsEmpty() then
+                Mesh.Empty
+            else
+                Array.reduce mergeMesh arr)
 
-let noise = new FastNoise()
+let fastNoise =
+    let fastNoise = new FastNoise()
+
+    // How many noise 'passes' to add together.
+    // Default: 3
+    fastNoise.Octaves <- 4
+
+    // The xy scale of the noise.
+    // Default: 0.01
+    fastNoise.Frequency <- 0.1f
+
+    // A cumulative freq. modifier for each octave
+    // Default: 2
+    fastNoise.Lacunarity <- 3f
+
+    // A cumulative amplitude modifier for each octave
+    // Default: 0.05
+    fastNoise.Gain <- 0.1f
+
+    fastNoise
+
+let randomOffset = 56478f
 
 let defaultWorld =
     { Chunks = HashMap.empty
-      BlockGenerator =
-        (fun x y z ->
-            let height = noise.GetSimplexFractal(float32 x, float32 y) * 5f + 8f
-
-            if float32 z < height - 3f then Stone
-            elif float32 z <= height then Dirt
-            else Air) }
+      BlockGenerator = (fun biome x y z -> biomeWorldGen biome x y z) }

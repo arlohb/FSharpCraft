@@ -33,7 +33,14 @@ let blockColour block =
     | Dirt -> C4b(0.3, 0.2, 0)
     | Stone -> C4b(0.5)
 
-let blockUv _block = V2f.Zero
+let blockUv block =
+    let (x, y) =
+        match block with
+        | Air -> (0, 0)
+        | Dirt -> (2, 15)
+        | Stone -> (3, 15)
+
+    V2f(x, y) / 16f
 
 let isAir block =
     match block with
