@@ -4,7 +4,6 @@
 // I can verify this, so disable this warning.
 #nowarn "40"
 
-open System.Threading.Tasks
 open FSharp.Collections
 open FSharp.Data.Adaptive
 open Aardvark.Base
@@ -29,71 +28,24 @@ let main _ =
 
     let meshes: cmap<Chunk.Id, Mesh.Mesh> = cmap ()
 
-    let activateMeshGenAgent = new Event<unit>()
+    let meshAddAgent =
+        Agents.simpleAgent (fun (chunkId, mesh) -> transact (fun () -> meshes.Add(chunkId, mesh) |> ignore))
 
-    let rec world = new World(Biome.getWorldGen, meshGenAgent.Post)
+    let rec world = new World(Biome.getWorldGen, (snd meshGenAgent).Post)
 
-    and meshAddAgent: MailboxProcessor<Chunk.Id * Mesh.Mesh> =
-        MailboxProcessor<_>.Start(fun inbox ->
-            let rec messageLoop () =
-                async {
-                    let! chunkId, mesh = inbox.Receive()
-
-                    transact (fun () -> meshes.Add(chunkId, mesh) |> ignore)
-
-                    return! messageLoop ()
-                }
-
-            messageLoop ())
-
-    and meshGenAgent: MailboxProcessor<Chunk.Id> =
-        MailboxProcessor<Chunk.Id>.Start(fun inbox ->
-            activateMeshGenAgent.Publish |> Async.AwaitEvent |> Async.RunSynchronously
-
-            let rec messageLoop tasks =
-                async {
-                    let! chunkId = inbox.TryReceive 100
-
-                    let tasks =
-                        tasks
-                        |> List.append (
-                            match chunkId with
-                            | Some chunkId ->
-                                // Create and start the task
-                                [ Task.Run(fun () ->
-                                      let mesh = world.CreateMesh chunkId
-                                      meshAddAgent.Post(chunkId, mesh)
-                                      printf "_") ]
-                            | None -> []
-                        )
-
-                    // Partition into complete and still running
-                    let complete, tasks = tasks |> List.partition (fun t -> t.IsCompleted)
-
-                    // Delete all the completed tasks
-                    complete |> List.iter (fun t -> t.Dispose())
-
-                    return! messageLoop tasks
-                }
-
-            messageLoop [])
+    and meshGenAgent: Event<unit> * MailboxProcessor<Chunk.Id> =
+        Agents.taskPoolAgent (fun chunkId ->
+            let mesh = world.CreateMesh chunkId
+            meshAddAgent.Post(chunkId, mesh)
+            printf "_")
 
     let chunkGenAgent =
-        MailboxProcessor<Chunk.Id>.Start(fun inbox ->
-            let rec messageLoop () =
-                async {
-                    let! chunkId = inbox.Receive()
-
-                    if world.Chunks.ContainsKey chunkId |> not then
-                        printf "+"
-                        world.CreateChunk chunkId true
-                    else
-                        ()
-
-                    return! messageLoop ()
-                }
-
-            messageLoop ())
+        Agents.simpleAgent (fun chunkId ->
+            if world.Chunks.ContainsKey chunkId |> not then
+                printf "+"
+                world.CreateChunk chunkId true
+            else
+                ())
 
     let texture = new FileTexture("assets/Texture.png", false)
 
@@ -111,7 +63,7 @@ let main _ =
 
     printfn "Chunks generated"
 
-    activateMeshGenAgent.Trigger()
+    (fst meshGenAgent).Trigger()
 
     printfn "Mesh agent started"
 
