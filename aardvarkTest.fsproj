@@ -12,6 +12,7 @@
   </PropertyGroup>
   <ItemGroup>
     <None Include="paket.references" />
+    <Compile Include="src\Lib.fs" />
     <Compile Include="src\Mesh.fs" />
     <Compile Include="src\Block.fs" />
     <Compile Include="src\Biome.fs" />

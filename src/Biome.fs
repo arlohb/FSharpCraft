@@ -2,42 +2,42 @@ module Biome
 
 open DotnetNoise
 
-open Block
-
 type Biome =
     | Grasslands
     | Mountains
 
-let biomes = [ Grasslands; Mountains ]
+let all = [ Grasslands; Mountains ]
 
-let biomeNoise =
+let private noise =
     let noise = new FastNoise()
     noise.Frequency <- 0.01f
     noise
 
-let getBiome x y =
+let get x y =
     let offsetScale = 25f
     let offsetFreq = 2.5f
 
     let offsetX =
-        biomeNoise.GetSimplexFractal(float32 x * offsetFreq, float32 y * offsetFreq)
+        noise.GetSimplexFractal(float32 x * offsetFreq, float32 y * offsetFreq)
         * offsetScale
 
     let offsetY =
-        biomeNoise.GetSimplexFractal(float32 x * offsetFreq + 100f, float32 y * offsetFreq + 100f)
+        noise.GetSimplexFractal(float32 x * offsetFreq + 100f, float32 y * offsetFreq + 100f)
         * offsetScale
 
     // Mapped to 0..1
-    biomeNoise.GetCellular(float32 x + offsetX, float32 y + offsetY) + 1f / 2f
+    noise.GetCellular(float32 x + offsetX, float32 y + offsetY) + 1f / 2f
     // Map to 0 .. biome count
-    |> ((*) (float32 biomes.Length))
+    |> (*) (float32 all.Length)
     // Get index
     |> floor
     // Fix edge cases
-    |> (fun i -> if i = float32 biomes.Length then i - 1f else i)
+    |> (fun i -> if i = float32 all.Length then i - 1f else i)
     |> (fun i -> if i < 0f then 0f else i)
     // Get biome
-    |> (fun i -> biomes[int i])
+    |> (fun i -> all[int i])
+
+let private randomOffset = 56478f
 
 // Octaves:
 //   How many noise 'passes' to add together.
@@ -51,7 +51,7 @@ let getBiome x y =
 // Gain:
 //   A cumulative amplitude modifier for each octave
 //   Default: 0.05
-let grasslandsNoise =
+let private grasslandsNoise =
     let noise = new FastNoise()
     noise.Octaves <- 4
     noise.Frequency <- 0.05f
@@ -59,7 +59,20 @@ let grasslandsNoise =
     noise.Gain <- 0.01f
     noise
 
-let mountainsNoise =
+let grasslandsGen x y z =
+    let height = grasslandsNoise.GetSimplexFractal(float32 x, float32 y) * 5f
+
+    if float32 z < height - 3f then
+        Block.Stone
+    elif float32 z <= height then
+        let randomValue =
+            grasslandsNoise.GetSimplexFractal(float32 x * 2f + randomOffset, float32 y * 2f + randomOffset)
+
+        if randomValue > 0.3f then Block.Stone else Block.Dirt
+    else
+        Block.Air
+
+let private mountainsNoise =
     let noise = new FastNoise()
     noise.Octaves <- 4
     noise.Frequency <- 0.02f
@@ -67,32 +80,21 @@ let mountainsNoise =
     noise.Gain <- 0.1f
     noise
 
-let biomeWorldGen biome x y z =
-    let randomOffset = 56478f
+let mountainsGen x y z =
+    let noise = mountainsNoise.GetSimplexFractal(float32 x, float32 y) |> abs
+    let height = (1f - noise) * 40f - 40f
 
-    match biome with
-    | Grasslands ->
-        let height = grasslandsNoise.GetSimplexFractal(float32 x, float32 y) * 5f
+    if float32 z < height - 3f then
+        Block.Stone
+    elif float32 z <= height then
+        let randomValue =
+            mountainsNoise.GetSimplexFractal(float32 x * 2f + randomOffset, float32 y * 2f + randomOffset)
 
-        if float32 z < height - 3f then
-            Stone
-        elif float32 z <= height then
-            let randomValue =
-                grasslandsNoise.GetSimplexFractal(float32 x * 2f + randomOffset, float32 y * 2f + randomOffset)
+        if randomValue > 0.3f then Block.Dirt else Block.Stone
+    else
+        Block.Air
 
-            if randomValue > 0.3f then Stone else Dirt
-        else
-            Air
-    | Mountains ->
-        let noise = mountainsNoise.GetSimplexFractal(float32 x, float32 y) |> abs
-        let height = (1f - noise) * 40f - 40f
-
-        if float32 z < height - 3f then
-            Stone
-        elif float32 z <= height then
-            let randomValue =
-                mountainsNoise.GetSimplexFractal(float32 x * 2f + randomOffset, float32 y * 2f + randomOffset)
-
-            if randomValue > 0.3f then Dirt else Stone
-        else
-            Air
+let getWorldGen =
+    function
+    | Grasslands -> grasslandsGen
+    | Mountains -> mountainsGen

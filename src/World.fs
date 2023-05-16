@@ -2,154 +2,83 @@ module World
 
 open FSharp.Data.Adaptive
 open Aardvark.Base
-open DotnetNoise
 
-open Block
-open Chunk
-open Biome
-open Mesh
+open Lib
 
-type World =
-    { mutable Chunks: HashMap<(int * int * int), Chunk>
-      BlockGenerator: Biome -> int -> int -> int -> Block }
+type World(blockGen, meshAgentPost) =
+    member val Chunks: cmap<Chunk.Id, Chunk.Chunk> = cmap ()
+    member val BlockGenerator: Biome.Biome -> int -> int -> int -> Block.Block = blockGen
+    member val MeshAgentPost: Chunk.Id -> unit = meshAgentPost
 
-    member this.CreateChunk x y z =
-        let newChunk =
-            createChunk this.BlockGenerator (16f * V3f(float x, float y, float z))
+    member this.CreateChunk chunkId spreadEvent =
+        let newChunk = Chunk.create this.BlockGenerator chunkId
 
-        this.Chunks <- this.Chunks.Add((x, y, z), newChunk)
+        this.Chunks.Add(chunkId, newChunk) |> ignore
 
-    member this.CreateMesh(chunkPos: (int * int * int)) =
-        /// Whether this block is outside the chunk
-        /// Only checks for positive edge
-        let outsideChunk (x, y, z) =
-            x >= ChunkSize || y >= ChunkSize || z >= ChunkSize
+        let (Chunk.Id chunkPos) = chunkId
+        let (x, y, z) = (chunkPos.X, chunkPos.Y, chunkPos.Z)
 
-        /// Get the block of a face between these two blocks
-        /// If one exists
-        let getFaceBetweenBlocks block1 block2 =
-            if isAir block1 = isAir block2 then None
-            elif isAir block1 then Some(block2)
-            else Some(block1)
+        if spreadEvent then
+            [| x - 1 .. x + 1 |]
+            |> Array.allPairs [| y - 1 .. y + 1 |]
+            |> Array.allPairs [| z - 1 .. z + 1 |]
+            |> Array.map (fun (z, (y, x)) -> V3i(x, y, z) |> Chunk.Id)
+            |> Array.filter this.Chunks.ContainsKey
+            |> Array.iter meshAgentPost
+        else
+            meshAgentPost chunkId
 
+    member this.CreateMesh(Chunk.Id chunkId) =
         /// Get the face at this position in this direction
         /// Returns None if there is no face
-        let getFace chunkPos x y z dir =
-            let chunk = this.Chunks[chunkPos]
-            let block1 = chunk.Blocks[x, y, z]
+        let getFace chunkId pos dir =
+            let chunk = this.Chunks[chunkId]
+            let block1 = chunk.GetBlock pos
 
             // Get the next block along the direction
-            let (x', y', z') = addDirection (x, y, z) dir
+            let pos' = pos + dir
 
             // If this is outside the chunk
-            if outsideChunk (x', y', z') then
+            if Chunk.isOutside pos' then
                 // Get the chunk it would be in
-                let chunkPos' = addDirection chunkPos dir
+                let chunkPos' = chunkId.value + dir |> Chunk.Id
 
                 // If this chunk exists
                 if this.Chunks.ContainsKey(chunkPos') then
                     // Read from it
                     let chunk = this.Chunks[chunkPos']
-                    // And fix x' y' z'
-                    let x' = x' % ChunkSize
-                    let y' = y' % ChunkSize
-                    let z' = z' % ChunkSize
+                    // And fix pos
+                    let pos' = pos' % Chunk.Size
 
-                    let block2 = chunk.Blocks[x', y', z']
-                    getFaceBetweenBlocks block1 block2 |> Option.map (fun b -> (dir, b))
+                    let block2 = chunk.GetBlock pos'
+                    Block.getFaceBetween block1 block2 |> Option.map (fun b -> (dir, b))
                 else if
                     // If the chunk isn't generated,
                     // just make a face if not air
-                    isAir block1
+                    Block.isAir block1
                 then
                     None
                 else
                     Some((dir, block1))
             else
-                let block2 = chunk.Blocks[x', y', z']
-                getFaceBetweenBlocks block1 block2 |> Option.map (fun b -> (dir, b))
+                let block2 = chunk.GetBlock pos'
+                Block.getFaceBetween block1 block2 |> Option.map (fun b -> (dir, b))
 
         /// Get all the faces of a block in a chunk
-        let getFaces chunkPos (x, y, z) =
-            pDirections
-            |> Array.map (getFace chunkPos x y z)
+        let getFaces chunkId (pos: V3i) =
+            if pos.X = 0 || pos.Y = 0 || pos.Z = 0 then
+                Block.pDirections
+            else
+                Block.pDirections
+            |> Array.map (getFace chunkId pos)
             |> Array.filter Option.isSome
             |> Array.map Option.get
 
-        let buildFace (x, y, z) (direction, block) =
-            let (points, normal) =
-                match direction with
-                | Px -> ([| V3f.IOO; V3f.IOI; V3f.III; V3f.IIO |], V3f.IOO)
-                | Py -> ([| V3f.IIO; V3f.III; V3f.OII; V3f.OIO |], V3f.OIO)
-                | Pz -> ([| V3f.OOI; V3f.OII; V3f.III; V3f.IOI |], V3f.OOI)
-                | Nx -> ([| V3f.OIO; V3f.OII; V3f.OOI; V3f.OOO |], -V3f.IOO)
-                | Ny -> ([| V3f.OOO; V3f.OOI; V3f.IOI; V3f.IOO |], -V3f.OIO)
-                | Nz -> ([| V3f.OOO; V3f.OIO; V3f.IIO; V3f.IOO |], -V3f.OOI)
-
-            // Without this extra value
-            // There are lines between blocks
-            let e = pow 10f -2f
-
-            let uvs =
-                [| V2f.OO + V2f(e, e)
-                   V2f.OI + V2f(e, -e)
-                   V2f.II + V2f(-e, -e)
-                   V2f.IO + V2f(-e, e) |]
-
-            { Vertices =
-                points
-                |> Array.zip uvs
-                |> Array.map (fun (uv, p) ->
-                    let cx, cy, cz = chunkPos
-
-                    { Position = 16f * V3f(cx, cy, cz) + p + V3f(float x, float y, float z)
-                      Normal = normal
-                      Uv = uv / 16f + blockUv block })
-              Triangles = [| 0; 1; 2; 0; 2; 3 |] }
-
-        let flattenArray (array: 'a array3d) =
-            [| 0 .. Array3D.length1 array - 1 |]
-            |> Array.map (fun x -> ([| 0 .. Array3D.length2 array - 1 |] |> Array.map (fun y -> array[x, y, *])))
-            |> Array.reduce Array.append
-            |> Array.reduce Array.append
-
-        let zipMap fn array = array |> Array.map (fun x -> (x, fn x))
-
-        this.Chunks[chunkPos].Blocks
-        |> Array3D.mapi (fun x y z _ -> (x, y, z))
-        |> flattenArray
-        |> zipMap (getFaces chunkPos)
-        |> Array.map (fun (pos, faces) -> faces |> Array.map (buildFace pos))
-        |> Array.collect id
-        |> (fun arr ->
-            if arr.IsEmpty() then
-                Mesh.Empty
-            else
-                Array.reduce mergeMesh arr)
-
-let fastNoise =
-    let fastNoise = new FastNoise()
-
-    // How many noise 'passes' to add together.
-    // Default: 3
-    fastNoise.Octaves <- 4
-
-    // The xy scale of the noise.
-    // Default: 0.01
-    fastNoise.Frequency <- 0.1f
-
-    // A cumulative freq. modifier for each octave
-    // Default: 2
-    fastNoise.Lacunarity <- 3f
-
-    // A cumulative amplitude modifier for each octave
-    // Default: 0.05
-    fastNoise.Gain <- 0.1f
-
-    fastNoise
-
-let randomOffset = 56478f
-
-let defaultWorld =
-    { Chunks = HashMap.empty
-      BlockGenerator = (fun biome x y z -> biomeWorldGen biome x y z) }
+        this.Chunks[Chunk.Id chunkId].Blocks
+        |> Array3D.mapi (fun x y z _ -> V3i(x, y, z))
+        |> flattenArray3D
+        |> zipMapFlat (getFaces (Chunk.Id chunkId))
+        |> Array.map (fun (pos, face) -> Block.createFace (Chunk.Size * chunkId + pos) face)
+        |> function
+            | [||] -> Mesh.empty
+            | arr -> Array.reduce Mesh.merge arr
