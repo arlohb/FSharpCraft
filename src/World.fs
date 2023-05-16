@@ -8,7 +8,7 @@ open Lib
 type World(blockGen, meshAgentPost) =
     member val Chunks: cmap<Chunk.Id, Chunk.Chunk> = cmap ()
     member val BlockGenerator: Biome.Biome -> int -> int -> int -> Block.Block = blockGen
-    member val MeshAgentPost: Chunk.Id -> unit = meshAgentPost
+    member val MeshAgentPost: World * Chunk.Id -> unit = meshAgentPost
 
     member this.CreateChunk chunkId spreadEvent =
         let newChunk = Chunk.create this.BlockGenerator chunkId
@@ -24,9 +24,9 @@ type World(blockGen, meshAgentPost) =
             |> Array.allPairs [| z - 1 .. z + 1 |]
             |> Array.map (fun (z, (y, x)) -> V3i(x, y, z) |> Chunk.Id)
             |> Array.filter this.Chunks.ContainsKey
-            |> Array.iter meshAgentPost
+            |> Array.iter (fun chunkId -> meshAgentPost (this, chunkId))
         else
-            meshAgentPost chunkId
+            meshAgentPost (this, chunkId)
 
     member this.CreateMesh(Chunk.Id chunkId) =
         /// Get the face at this position in this direction

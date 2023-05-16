@@ -1,10 +1,4 @@
-﻿// Used when world and meshGenAgent are created.
-// The compiler can't verify the references to each other aren't
-// used before the other is initialised.
-// I can verify this, so disable this warning.
-#nowarn "40"
-
-open FSharp.Collections
+﻿open FSharp.Collections
 open FSharp.Data.Adaptive
 open Aardvark.Base
 open Aardvark.Rendering
@@ -31,13 +25,13 @@ let main _ =
     let meshAddAgent =
         Agents.simpleAgent (fun (chunkId, mesh) -> transact (fun () -> meshes.Add(chunkId, mesh) |> ignore))
 
-    let rec world = new World(Biome.getWorldGen, (snd meshGenAgent).Post)
-
-    and meshGenAgent: Event<unit> * MailboxProcessor<Chunk.Id> =
-        Agents.taskPoolAgent (fun chunkId ->
+    let meshGenStart, meshGenAgent =
+        Agents.taskPoolAgent (fun (world: World, chunkId) ->
             let mesh = world.CreateMesh chunkId
             meshAddAgent.Post(chunkId, mesh)
             printf "_")
+
+    let world = new World(Biome.getWorldGen, meshGenAgent.Post)
 
     let chunkGenAgent =
         Agents.simpleAgent (fun chunkId ->
@@ -63,7 +57,7 @@ let main _ =
 
     printfn "Chunks generated"
 
-    (fst meshGenAgent).Trigger()
+    meshGenStart.Trigger()
 
     printfn "Mesh agent started"
 
