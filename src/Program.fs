@@ -6,7 +6,6 @@ open Aardvark.SceneGraph
 open Aardvark.Application
 open Aardvark.Application.Slim
 
-open Camera
 open World
 
 // [<EntryPoint; STAThread>]
@@ -18,7 +17,7 @@ let main _ =
     use win = app.CreateGameWindow(4)
 
     let view =
-        camera win.Keyboard win.Mouse win.Time (CameraView.lookAt (V3d(6, 6, 6)) V3d.Zero V3d.OOI)
+        Camera.camera win.Keyboard win.Mouse win.Time (CameraView.lookAt (V3d(6, 6, 6)) V3d.Zero V3d.OOI)
 
     let meshes: cmap<Chunk.Id, Mesh.Mesh> = cmap ()
 
@@ -43,16 +42,10 @@ let main _ =
 
     let texture = new FileTexture("assets/Texture.png", false)
 
-    let chunkRadius = 10
-    let chunkZRadius = 2
-
     printfn "Generating chunks"
 
     // Generate chunks
-    [| -chunkRadius .. chunkRadius |]
-    |> Array.allPairs [| -chunkRadius .. chunkRadius |]
-    |> Array.allPairs [| -chunkZRadius .. chunkZRadius |]
-    |> Array.map (fun (z, (y, x)) -> V3i(x, y, z) |> Chunk.Id)
+    Camera.chunksAroundCamera V3d.Zero 10 -2 2
     |> Array.iter (fun chunkId -> world.CreateChunk chunkId false)
 
     printfn "Chunks generated"
@@ -63,7 +56,7 @@ let main _ =
 
     use _ =
         view.AddCallback(fun (view: CameraView) ->
-            chunksAroundCamera view.Location 4 -1 2
+            Camera.chunksAroundCamera view.Location 4 -1 2
             |> Array.filter (world.Chunks.ContainsKey >> not)
             |> Array.iter chunkGenAgent.Post)
 
