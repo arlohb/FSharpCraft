@@ -6,8 +6,6 @@ open Aardvark.SceneGraph
 open Aardvark.Application
 open Aardvark.Application.Slim
 
-open World
-
 // [<EntryPoint; STAThread>]
 [<EntryPoint>]
 let main _ =
@@ -25,12 +23,12 @@ let main _ =
         Agents.simpleAgent (fun (chunkId, mesh) -> transact (fun () -> meshes.Add(chunkId, mesh) |> ignore))
 
     let meshGenStart, meshGenAgent =
-        Agents.taskPoolAgent (fun (world: World, chunkId) ->
+        Agents.taskPoolAgent (fun (world: World.World, chunkId) ->
             let mesh = world.CreateMesh chunkId
             meshAddAgent.Post(chunkId, mesh)
             printf "_")
 
-    let world = new World(Biome.getWorldGen, meshGenAgent.Post)
+    let world = new World.World(Biome.getWorldGen, meshGenAgent.Post)
 
     let chunkGenAgent =
         Agents.simpleAgent (fun chunkId ->

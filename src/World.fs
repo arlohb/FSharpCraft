@@ -3,8 +3,6 @@ module World
 open FSharp.Data.Adaptive
 open Aardvark.Base
 
-open Lib
-
 type World(blockGen, meshAgentPost) =
     member val Chunks: cmap<Chunk.Id, Chunk.Chunk> = cmap ()
     member val BlockGenerator: Biome.Biome -> int -> int -> int -> Block.Block = blockGen
@@ -15,14 +13,8 @@ type World(blockGen, meshAgentPost) =
 
         this.Chunks.Add(chunkId, newChunk) |> ignore
 
-        let (Chunk.Id chunkPos) = chunkId
-        let (x, y, z) = (chunkPos.X, chunkPos.Y, chunkPos.Z)
-
         if spreadEvent then
-            [| x - 1 .. x + 1 |]
-            |> Array.allPairs [| y - 1 .. y + 1 |]
-            |> Array.allPairs [| z - 1 .. z + 1 |]
-            |> Array.map (fun (z, (y, x)) -> V3i(x, y, z) |> Chunk.Id)
+            Chunk.adjacentChunks chunkId
             |> Array.filter this.Chunks.ContainsKey
             |> Array.iter (fun chunkId -> meshAgentPost (this, chunkId))
         else
@@ -76,8 +68,8 @@ type World(blockGen, meshAgentPost) =
 
         this.Chunks[Chunk.Id chunkId].Blocks
         |> Array3D.mapi (fun x y z _ -> V3i(x, y, z))
-        |> flattenArray3D
-        |> zipMapFlat (getFaces (Chunk.Id chunkId))
+        |> Lib.flattenArray3D
+        |> Lib.zipMapFlat (getFaces <| Chunk.Id chunkId)
         |> Array.map (fun (pos, face) -> Block.createFace (Chunk.Size * chunkId + pos) face)
         |> function
             | [||] -> Mesh.empty

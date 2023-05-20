@@ -19,8 +19,4 @@ let camera (keyboard: IKeyboard) (mouse: IMouse) (time: aval<DateTime>) (initial
 let chunksAroundCamera (location: V3d) xyRadius zMin zMax =
     let chunk = V3i(location / float Chunk.Size)
 
-    Chunk.inRange
-        [| chunk.X - xyRadius .. chunk.X + xyRadius |]
-        [| chunk.Y - xyRadius .. chunk.Y + xyRadius |]
-        [| zMin..zMax |]
-    |> Array.map (V3i >> Chunk.Id)
+    Lib.aroundPointXY xyRadius zMin zMax chunk |> Array.map (V3i >> Chunk.Id)
