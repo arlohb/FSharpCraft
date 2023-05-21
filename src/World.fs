@@ -8,7 +8,7 @@ type World(blockGen, meshAgentPost) =
     member val BlockGenerator: Biome.Biome -> int -> int -> int -> Block.Block = blockGen
     member val MeshAgentPost: World * Chunk.Id -> unit = meshAgentPost
 
-    member this.CreateChunk chunkId spreadEvent =
+    member this.CreateChunk spreadEvent chunkId =
         let newChunk = Chunk.create this.BlockGenerator chunkId
 
         this.Chunks.Add(chunkId, newChunk) |> ignore

@@ -20,6 +20,7 @@
     <Compile Include="src\World.fs" />
     <Compile Include="src\Camera.fs" />
     <Compile Include="src\Agents.fs" />
+    <Compile Include="src\Bench.fs" />
     <Compile Include="src\Program.fs" />
   </ItemGroup>
   <Import Project=".paket\Paket.Restore.targets" />
