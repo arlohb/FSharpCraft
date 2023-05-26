@@ -30,29 +30,30 @@ type World(blockGen, meshAgentPost) =
             // Get the next block along the direction
             let pos' = pos + dir
 
+            match pos' with
             // If this is outside the chunk
-            if Chunk.isOutside pos' then
+            | Chunk.IsOutside pos' ->
                 // Get the chunk it would be in
                 let chunkPos' = chunkId.value + dir |> Chunk.Id
 
+                match this.Chunks.ContainsKey(chunkPos'), block1 with
                 // If this chunk exists
-                if this.Chunks.ContainsKey(chunkPos') then
+                | true, _ ->
                     // Read from it
                     let chunk = this.Chunks[chunkPos']
                     // And fix pos
-                    let pos' = pos' % Chunk.Size
+                    // The addition is to fix negatives
+                    let pos' = (pos' + Chunk.Size) % Chunk.Size
 
                     let block2 = chunk.GetBlock pos'
                     Block.getFaceBetween block1 block2 |> Option.map (fun b -> (dir, b))
-                else if
-                    // If the chunk isn't generated,
-                    // just make a face if not air
-                    Block.isAir block1
-                then
-                    None
-                else
-                    Some((dir, block1))
-            else
+
+                // If this block is air
+                | _, Block.Air -> None
+
+                // If this block is a block, create a face
+                | _, _ -> Some(dir, block1)
+            | _ ->
                 let block2 = chunk.GetBlock pos'
                 Block.getFaceBetween block1 block2 |> Option.map (fun b -> (dir, b))
 

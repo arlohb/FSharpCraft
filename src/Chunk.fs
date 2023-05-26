@@ -39,5 +39,10 @@ let create blockGen (chunkId: Id) =
 let isOutside (p: V3i) =
     p.X >= Size || p.Y >= Size || p.Z >= Size || p.X < 0 || p.Y < 0 || p.Z < 0
 
+let (|IsOutside|_|) pos =
+    match isOutside pos with
+    | true -> Some pos
+    | false -> None
+
 let adjacentChunks (Id chunkPos) =
     Lib.aroundPoint 1 chunkPos |> Array.map (V3i >> Id)
