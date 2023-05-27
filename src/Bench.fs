@@ -20,8 +20,8 @@ let run () =
 
     bench "Chunk Gen" chunkGenRange (Chunk.create Biome.getWorldGen)
 
-    let world = new World.World(Biome.getWorldGen, ignore)
+    let world = new World.World(Biome.getWorldGen)
 
-    chunkGenRange |> List.iter (fun chunkId -> world.CreateChunk false chunkId)
+    chunkGenRange |> List.iter world.CreateChunk
 
     bench "Mesh Gen" chunkGenRange world.CreateMesh

@@ -30,15 +30,14 @@ let main args =
                 meshAddAgent.Post(chunkId, mesh)
                 printf "_")
 
-        let world = new World.World(Biome.getWorldGen, meshGenAgent.Post)
+        let world = new World.World(Biome.getWorldGen)
 
         let chunkGenAgent =
             Agents.simpleAgent (fun chunkId ->
                 if world.Chunks.ContainsKey chunkId |> not then
                     printf "+"
-                    world.CreateChunk true chunkId
-                else
-                    ())
+                    world.CreateChunk chunkId
+                    meshGenAgent.Post(world, chunkId))
 
         let texture = new FileTexture("assets/Texture.png", false)
 
@@ -46,7 +45,9 @@ let main args =
 
         // Generate chunks
         Camera.chunksAroundCamera V3d.Zero 10 -2 2
-        |> Array.iter (fun chunkId -> world.CreateChunk false chunkId)
+        |> Array.iter (fun chunkId ->
+            world.CreateChunk chunkId
+            meshGenAgent.Post(world, chunkId))
 
         printfn "Chunks generated"
 
@@ -56,7 +57,7 @@ let main args =
 
         use _ =
             view.AddCallback(fun (view: CameraView) ->
-                Camera.chunksAroundCamera view.Location 4 -1 2
+                Camera.chunksAroundCamera view.Location 16 -2 2
                 |> Array.filter (world.Chunks.ContainsKey >> not)
                 |> Array.iter chunkGenAgent.Post)
 
