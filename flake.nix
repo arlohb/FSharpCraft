@@ -11,7 +11,7 @@
         # from the nix store
         # There's probably a better solution, but I don't know it
         glfw
-        dotnet-sdk_7
+        dotnet-sdk_6
       ];
     };
   };

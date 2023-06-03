@@ -2,6 +2,9 @@ source https://api.nuget.org/v3/index.json
 framework: auto-detect
 storage: none
 
+nuget Aardvark.Application.Utilities 5.3.0
+nuget Aardvark.UI.Primitives 5.3.5
+nuget Adaptify.Core 1.1.9
 nuget DotnetNoise 1.0.0
 nuget FSharp.Core                           >= 5.0.1
 

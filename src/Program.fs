@@ -4,7 +4,11 @@ open Aardvark.Base
 open Aardvark.Rendering
 open Aardvark.SceneGraph
 open Aardvark.Application
-open Aardvark.Application.Slim
+open Aardvark.UI
+open Aardvark.UI.Primitives
+open FShade
+open Aardium
+open Suave
 
 // [<EntryPoint; STAThread>]
 [<EntryPoint>]
@@ -13,8 +17,13 @@ let main args =
     | [||] ->
         Aardvark.Init()
 
-        use app = new OpenGlApplication()
-        use win = app.CreateGameWindow(4)
+        let win =
+            window {
+                backend Backend.GL
+                display Display.Mono
+                debug false
+                samples 4
+            }
 
         let view =
             Camera.camera win.Keyboard win.Mouse win.Time (CameraView.lookAt (V3d(6, 6, 6)) V3d.Zero V3d.OOI)
@@ -39,7 +48,8 @@ let main args =
                     world.CreateChunk chunkId
                     meshGenAgent.Post(world, chunkId))
 
-        let texture = new FileTexture("assets/Texture.png", false)
+        let texture = new FileTexture("assets/Texture.png", false) |> AVal.constant
+        let texture = NoiseDemo.texture win.Time
 
         printfn "Generating chunks"
 
@@ -70,17 +80,31 @@ let main args =
                 (Map.ofList
                     [ DefaultSemantic.Positions, typeof<V3f>
                       DefaultSemantic.Normals, typeof<V3f>
+                      DefaultSemantic.ColorTexture, typeof<Symbol>
+                      // DefaultSemantic.DiffuseColorTexture, typeof<Symbol>
                       DefaultSemantic.DiffuseColorCoordinates, typeof<V2f> ])
-            |> Sg.diffuseTexture (texture |> AVal.constant)
-            |> Sg.samplerState
-                DefaultSemantic.DiffuseColorTexture
-                (SamplerState.Default
-                 |> SamplerState.withFilter TextureFilter.MinMagPoint
-                 |> Some
-                 |> AVal.constant)
+            |> Sg.texture Mesh.blockTexture texture
+            // |> Sg.diffuseTexture texture
+            |> Sg.uniform "myUniform" texture
             |> Sg.shader {
                 do! DefaultSurfaces.trafo
-                do! DefaultSurfaces.diffuseTexture
+
+                // do! DefaultSurfaces.diffuseTexture
+                do!
+                    let diffuseSampler =
+                        sampler2d {
+                            texture uniform?myUniform
+                            filter Filter.MinMagPoint
+                            addressU WrapMode.Wrap
+                            addressV WrapMode.Wrap
+                        }
+
+                    (fun (v: Effects.Vertex) ->
+                        fragment {
+                            let texColour = diffuseSampler.Sample(v.tc)
+                            return texColour
+                        })
+
                 do! DefaultSurfaces.simpleLighting
             }
             |> Sg.viewTrafo (view |> AVal.map CameraView.viewTrafo)
@@ -91,13 +115,40 @@ let main args =
                     |> Frustum.projTrafo)
             )
 
-        let task = app.Runtime.CompileRender(win.FramebufferSignature, sg)
-
-        win.RenderTask <- task
+        win.Scene <- sg
         win.Run()
         0
     | [| "bench" |] ->
         Bench.run ()
+        0
+    | [| "gui" |] ->
+        Aardvark.Init()
+        // Aardium.init ()
+
+        // let win =
+        //     window {
+        //         backend Backend.GL
+        //         display Display.Mono
+        //         debug false
+        //         samples 4
+        //     }
+
+        let app = new Aardvark.Application.Slim.OpenGlApplication()
+
+        WebPart.startServerLocalhost 4321 [ MutableApp.toWebPart' app.Runtime false (App.start App.app) ]
+        |> ignore
+
+        while true do
+            ()
+
+        // Aardium.run {
+        //     title "Aardvark rocks \\o/"
+        //     width 1024
+        //     height 768
+        //     // url "http://localhost:4321/"
+        //     url "https://www.google.com"
+        // }
+
         0
     | _ ->
         printfn "Args not recognised"

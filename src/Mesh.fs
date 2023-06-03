@@ -4,6 +4,9 @@ open System
 open FSharp.Data.Adaptive
 open Aardvark.Base
 open Aardvark.Rendering
+open Aardvark.SceneGraph
+
+let blockTexture = Sym.ofString "blockTexture"
 
 type Vertex = { Position: V3f; Normal: V3f; Uv: V2f }
 
@@ -25,6 +28,10 @@ let createGeometry mesh =
     IndexedGeometry(
         Mode = IndexedGeometryMode.TriangleList,
         IndexArray = mesh.Triangles,
+        SingleAttributes =
+            SymDict.ofList
+                // [ DefaultSemantic.DiffuseColorTexture, blockTexSymbol :> obj
+                [ DefaultSemantic.ColorTexture, blockTexture :> obj ],
         IndexedAttributes =
             SymDict.ofList
                 [ DefaultSemantic.Positions, mesh.Vertices |> Array.map (fun p -> p.Position) :> Array

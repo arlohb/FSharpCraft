@@ -25,6 +25,12 @@
       "commands": [
         "dotnet-fsharplint"
       ]
+    },
+    "adaptify": {
+      "version": "1.1.9",
+      "commands": [
+        "adaptify"
+      ]
     }
   }
 }

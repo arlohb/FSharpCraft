@@ -3,7 +3,7 @@ module Lib
 open Aardvark.Base
 
 /// Flatten an Array3D into a flat array.
-let flattenArray3D (array: 'a array3d) =
+let flattenArray3D (array: 'a[,,]) =
     [| 0 .. Array3D.length1 array - 1 |]
     |> Array.map (fun x -> ([| 0 .. Array3D.length2 array - 1 |] |> Array.map (fun y -> array[x, y, *])))
     |> Array.reduce Array.append

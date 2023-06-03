@@ -8,3 +8,7 @@ Aardvark.Application.Slim
 Aardvark.Application.Slim.GL
 Aardvark.SceneGraph
 DotnetNoise
+Aardvark.Application.Utilities
+Aardvark.UI.Primitives
+Aardvark.UI
+Adaptify.Core
