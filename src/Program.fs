@@ -7,7 +7,6 @@ open Aardvark.Application
 open Aardvark.UI
 open Aardvark.UI.Primitives
 open FShade
-open Aardium
 open Suave
 
 // [<EntryPoint; STAThread>]
