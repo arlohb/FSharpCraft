@@ -31,17 +31,9 @@ let uv block =
 
     V2f(x, y) / 16f
 
-// Without this extra value
-// There are lines between blocks
-let private epsilon = pow 10f -2f
-
 /// Get the UVs of a face.
 /// This is on the block spritesheet.
-let faceUvs' =
-    [| V2f.OO + epsilon * V2f.II
-       V2f.OI / 16f + epsilon * V2f.PN
-       V2f.II / 16f + epsilon * V2f.NN
-       V2f.IO / 16f + epsilon * V2f.NP |]
+let faceUvs' = [| V2f.OO; V2f.OI / 16f; V2f.II / 16f; V2f.IO / 16f |]
 
 let faceUvs block =
     let uvOffset = uv block
